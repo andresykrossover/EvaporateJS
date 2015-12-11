@@ -191,7 +191,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
      function FileUpload(file){
 
         var me = this, parts = [], progressTotalInterval, progressPartsInterval, countUploadAttempts = 0, xhrs = [];
-        var numParts, numPartsProcessed = 0;
+        var numParts, numPartsProcessed = 0, minPartsProcessed = 0;
         extend(me,file);
 
         me.start = function(){
@@ -458,9 +458,18 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
               numProcessed += 1;
 
-              if (numProcessed === numParts) {
-                 l.d('All parts have MD5 digests');
+              var completed = numProcessed === numParts;
+
+              if (part <= con.maxConcurrentParts) {
+                 minPartsProcessed += 1;
+              }
+
+              if (completed || minPartsProcessed === con.maxConcurrentParts) {
                  processPartsList();
+              }
+
+              if (completed) {
+                 l.d('All parts have MD5 digests');
               }
            }
         }
@@ -551,7 +560,12 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            // parts.length is always 1 greater than the actually number of parts, because AWS part numbers start at 1, not 0, so for a 3 part upload, the parts array is: [undefined, object, object, object], which has length 4.
 
            if (finished){
-              completeUpload();
+              if (con.checkMd5Integrity && numParts !== numPartsProcessed) {
+                 // we still don't have all the checksums calculated...
+                 processPartsList();
+              } else {
+                 completeUpload();
+              }
            }
         }
 
