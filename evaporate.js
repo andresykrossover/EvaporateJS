@@ -14,7 +14,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 /***************************************************************************************************
 *                                                                                                  *
-*  version 0.0.4                                                                                  *
+*  version 0.0.5                                                                                  *
 *                                                                                                  *
 *  TODO:                                                                                           *
 *       post eTags to application server to allow resumability after client-side crash/restart      *
@@ -140,7 +140,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            cancelled: function(){},
            info: function(){},
            warn: function(){},
-           error: function(){}
+           error: function(){},
+           failedAuth: function(){}
         },file,{
            id: id,
            status: PENDING,
@@ -752,6 +753,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
               warnMsg = 'failed to get authorization (onerror) for ' + authRequester.step + '.  xhr.status: ' + xhr.status + '.  xhr.response: ' + xhr.response;
               l.w(warnMsg);
               me.warn(warnMsg);
+              me.failedAuth(warnMsg);
               authRequester.onFailedAuth(xhr);
            };
 
