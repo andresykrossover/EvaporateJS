@@ -27,5 +27,8 @@
     "email": "tcs@videopixie.com"
   },
   "license": "BSD-2-Clause",
-  "homepage": "https://github.com/TTLabs/EvaporateJS"
+  "homepage": "https://github.com/TTLabs/EvaporateJS",
+  "dependencies": {
+    "spark-md5": "^2.0.0"
+  }
 }

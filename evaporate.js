@@ -14,16 +14,17 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 /***************************************************************************************************
 *                                                                                                  *
-*  version 0.0.2                                                                                  *
+*  version 0.0.3                                                                                   *
 *                                                                                                  *
-*  TODO:                                                                                           *
-*       calculate MD5s and send with PUTs                                                          *
-*       post eTags to application server to allow resumability after client-side crash/restart      *
+*  Includes:                                                                                       *
+*  - MD5 verification                                                                              *
 *                                                                                                  *
 *                                                                                                  *
 ***************************************************************************************************/
 
+
 (function() {
+  var SparkMD5 = require('spark-md5');
 
   var Evaporate = function(config){
 
@@ -288,7 +289,6 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
               x_amz_headers: me.xAmzHeadersAtUpload,
               attempts: part.attempts
            };
-           // TODO: add md5
 
            upload.onErr = function (xhr, isOnError){
 
@@ -324,7 +324,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
               var eTag = xhr.getResponseHeader('ETag'), msg;
               l.d('uploadPart 200 response for part #' + partNumber + '     ETag: ' + eTag);
-              if(part.isEmpty || (eTag != ETAG_OF_0_LENGTH_BLOB)) // issue #58
+
+              if(eTag === upload.md5)
               { 
                  part.eTag = eTag;
                  part.status = COMPLETE;
@@ -350,11 +351,14 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            upload.toSend = function() {
               var slice= me.file[slicerFn](part.start, part.end);
               l.d('sending part # ' + partNumber + ' (bytes ' + part.start + ' -> ' + part.end + ')  reported length: ' + slice.size);
+
               if(!part.isEmpty && slice.size === 0) // issue #58
               {
                  l.w('  *** WARN: blob reporting size of 0 bytes. Will try upload anyway..');
               }
+
               return slice;
+
            };
 
            upload.onFailedAuth = function(xhr){
@@ -367,14 +371,33 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
               processPartsList();
            };
 
-           setupRequest(upload);
 
-           setTimeout(function(){
-              authorizedSend(upload);
-              l.d('upload #',partNumber,upload);
-           },backOff);
+           //Hash file Part
+           function hasFileSlice() {
 
-           part.uploader = upload;
+              var slice = upload.toSend();  
+              var reader = new FileReader();
+
+              reader.onload = function() {
+                upload.md5 = SparkMD5.hashBinary(reader.result);
+                setupRequest(upload);
+
+                setTimeout(function(){
+                  authorizedSend(upload);
+                  l.d('upload #',partNumber,upload);
+                },backOff);
+
+                part.uploader = upload;
+              };
+
+              reader.onerror = function() {
+                console.error('Could not read the file');
+              };
+
+              reader.readAsBinaryString(slice);
+           }
+
+           hasFileSlice();
         }
 
 
@@ -620,8 +643,13 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
               }
 
               if (requester.contentType){
-                 xhr.setRequestHeader('Content-Type', requester.contentType);
+                xhr.setRequestHeader('Content-Type', requester.contentType);
               }
+
+              // Something is missing with this header
+              // if(requester.md5) {
+              //   xhr.setRequestHeader('Content-MD5', requester.md5); 
+              // }
 
               xhr.onreadystatechange = function(){
 
@@ -655,7 +683,6 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
         //see: http://docs.amazonwebservices.com/AmazonS3/latest/dev/RESTAuthentication.html#ConstructingTheAuthenticationHeader
         function authorizedSend(authRequester){
-
            l.d('authorizedSend() ' + authRequester.step);
            var xhr = new XMLHttpRequest();
            xhrs.push(xhr);
@@ -699,6 +726,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            };
 
            xhr.open('GET', url);
+           
            for ( var header in me.signHeaders ) {
              if (!me.signHeaders.hasOwnProperty(header)) {continue;}
              if( me.signHeaders[header] instanceof Function ) {
