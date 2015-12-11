@@ -14,7 +14,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 /***************************************************************************************************
 *                                                                                                  *
-*  version 0.0.2                                                                                  *
+*  version 0.0.4                                                                                  *
 *                                                                                                  *
 *  TODO:                                                                                           *
 *       post eTags to application server to allow resumability after client-side crash/restart      *
@@ -560,12 +560,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            // parts.length is always 1 greater than the actually number of parts, because AWS part numbers start at 1, not 0, so for a 3 part upload, the parts array is: [undefined, object, object, object], which has length 4.
 
            if (finished){
-              if (con.checkMd5Integrity && numParts !== numPartsProcessed) {
-                 // we still don't have all the checksums calculated...
-                 processPartsList();
-              } else {
-                 completeUpload();
-              }
+              completeUpload();
            }
         }
 
