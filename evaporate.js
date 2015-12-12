@@ -14,7 +14,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 /***************************************************************************************************
 *                                                                                                  *
-*  version 0.0.6                                                                                  *
+*  version 0.0.7                                                                                  *
 *                                                                                                  *
 *  TODO:                                                                                           *
 *       post eTags to application server to allow resumability after client-side crash/restart      *
@@ -25,7 +25,6 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 (function() {
 
   var SparkMD5 = require('spark-md5');
-  var base64 = require('base-64');
 
   var Evaporate = function(config){
 
@@ -474,7 +473,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
                  l.d('All parts have MD5 digests');
               }
 
-              setTimeout(makeMd5Digests, 1500);
+              setTimeout(processPartsListWithMd5Digests, 1500);
            }
         }
 
