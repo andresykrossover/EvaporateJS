@@ -14,7 +14,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 /***************************************************************************************************
 *                                                                                                  *
-*  version 0.0.5                                                                                  *
+*  version 0.0.6                                                                                  *
 *                                                                                                  *
 *  TODO:                                                                                           *
 *       post eTags to application server to allow resumability after client-side crash/restart      *
@@ -192,7 +192,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
      function FileUpload(file){
 
         var me = this, parts = [], progressTotalInterval, progressPartsInterval, countUploadAttempts = 0, xhrs = [];
-        var numParts, numPartsProcessed = 0, minPartsProcessed = 0;
+        var numParts;
         extend(me,file);
 
         me.start = function(){
@@ -260,7 +260,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
                  me.uploadId = match[1];
                  l.d('requester success. got uploadId ' + me.uploadId);
                  makeParts();
-                 if (!requiresMd5()) {
+                 if (requiresMd5()) {
+                    processPartsListWithMd5Digests();
+                 } else {
                     processPartsList();
                  }
               }else{
@@ -448,38 +450,49 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            authorizedSend(complete);
         }
 
+        var numProcessed = 0;
+
         function partsOnloadend(part) {
            return function () {
-              var md5_digest= SparkMD5.hashBinary(this.result, true);
-              var md5Encoded = base64.encode(md5_digest);
-              l.d(['part #', part, ' MD5 digest is ', md5_digest].join(''));
-              parts[part].md5_digest = md5Encoded;
+              var s = me.file.status;
+              if (s == ERROR || s == CANCELED) {
+                 return;
+              }
 
-              delete parts[part].reader; // release potentially large memory allocation
+              var md5_digest = btoa(SparkMD5.hashBinary(this.result, true));
+
+              l.d(['part #', part.part, ' MD5 digest is ', md5_digest].join(''));
+              part.md5_digest = md5_digest;
+
+              delete part.reader; // release potentially large memory allocation
 
               numProcessed += 1;
 
-              var completed = numProcessed === numParts;
+              processPartsList();
 
-              if (part <= con.maxConcurrentParts) {
-                 minPartsProcessed += 1;
-              }
-
-              if (completed || minPartsProcessed === con.maxConcurrentParts) {
-                 processPartsList();
-              }
-
-              if (completed) {
+              if (numProcessed === numParts) {
                  l.d('All parts have MD5 digests');
+              }
+
+              setTimeout(makeMd5Digests, 1500);
+           }
+        }
+
+        function processPartsListWithMd5Digests() {
+           for (var i = 1; i <= numParts; i++) {
+              var part = parts[i];
+              if (part.md5_digest === null) {
+                 part.reader = new FileReader();
+                 part.reader.onloadend = partsOnloadend(part);
+                 part.reader.readAsBinaryString(getFilePart(me.file, part.start, part.end));
+                 break;
               }
            }
         }
 
-
         function makeParts(){
 
            numParts = Math.ceil(me.file.size / con.partSize) || 1; // issue #58
-           numProcessed = 0;
 
            for (var part = 1; part <= numParts; part++){
 
@@ -493,15 +506,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
                  loadedBytes: 0,
                  loadedBytesPrevious: null,
                  md5_digest: null,
+                 part: part,
                  isEmpty: (me.file.size === 0) // issue #58
               };
-
-              if (requiresMd5()) {
-                 parts[part].reader = new FileReader();
-                 parts[part].reader.onloadend = partsOnloadend(part);
-                 parts[part].reader.readAsBinaryString(getFilePart(me.file, start, end));
-
-              }
            }
         }
 
@@ -516,36 +523,40 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            }
 
            parts.forEach(function(part,i){
-
               var requiresUpload = false;
               stati.push(part.status);
               if (part){
-                 switch(part.status){
-
-                    case EVAPORATING:
-                       finished = false;
-                       evaporatingCount++;
-                       bytesLoaded.push(part.loadedBytes);
-                       break;
-
-                    case ERROR:
-                       anyPartHasErrored = true;
-                       requiresUpload = true;
-                       break;
-
-                    case PENDING:
-                       requiresUpload = true;
-                       break;
-
-                    default:
-                       break;
-                 }
-
-                 if (requiresUpload){
+                 if (con.checkMd5Integrity && part.md5_digest === null) {
+                    // Digest isn't ready yet
                     finished = false;
-                    if (evaporatingCount < con.maxConcurrentParts){
-                       uploadPart(i);
-                       evaporatingCount++;
+                 } else {
+                    switch(part.status){
+
+                       case EVAPORATING:
+                          finished = false;
+                          evaporatingCount++;
+                          bytesLoaded.push(part.loadedBytes);
+                          break;
+
+                       case ERROR:
+                          anyPartHasErrored = true;
+                          requiresUpload = true;
+                          break;
+
+                       case PENDING:
+                          requiresUpload = true;
+                          break;
+
+                       default:
+                          break;
+                    }
+
+                    if (requiresUpload){
+                       finished = false;
+                       if (evaporatingCount < con.maxConcurrentParts){
+                          uploadPart(i);
+                          evaporatingCount++;
+                       }
                     }
                  }
               }
