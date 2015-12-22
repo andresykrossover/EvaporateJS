@@ -59,8 +59,10 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
      }, config);
 
      //con.simulateStalling =  true
+      con.logging = true;
 
      _.add = function(file){
+        console.debug('function -> _.add');
 
         l.d('add');
         var err;
@@ -85,6 +87,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
      };
 
      _.cancel = function(id){
+        console.debug('function -> _.cancel');
 
         l.d('cancel ', id);
         if (files[id]){
@@ -131,6 +134,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 
      function addFile(file){
+        console.debug('function -> addFile');
 
         var id = files.length;
         files.push(new FileUpload(extend({
@@ -160,14 +164,14 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
      }
 
 
-     function asynProcessQueue(){
+    function asynProcessQueue() {
+      console.debug('function -> asynProcessQueue');
+      setTimeout(processQueue,1);
+    }
 
-        setTimeout(processQueue,1);
-     }
 
-
-     function processQueue(){
-
+     function processQueue() {
+      console.debug('function -> processQueue');
         l.d('processQueue   length: ' + files.length);
         var next = -1, priorityOfNext = -1, readyForNext = true;
         files.forEach(function(file,i){
@@ -194,7 +198,11 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
         var numParts;
         extend(me,file);
 
-        me.start = function(){
+        me.isAlive = true;
+
+        me.start = function() {
+
+          console.debug('FileUpload -> start');
 
            l.d('starting FileUpload ' + me.id);
 
@@ -204,17 +212,23 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            monitorPartsProgress();
         };
 
-        me.stop = function(){
+        me.stop = function() {
+
+           console.debug('FileUpload -> stop');
 
            l.d('stopping FileUpload ', me.id);
            me.cancelled();
            me.info('upload canceled');
            setStatus(CANCELED);
            cancelAllRequests();
+
         };
 
 
         function setStatus(s){
+          
+          console.debug('FileUpload -> setStatus');
+
            if (s == COMPLETE || s == ERROR || s == CANCELED){
               clearInterval(progressTotalInterval);
               clearInterval(progressPartsInterval);
@@ -224,7 +238,10 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
         }
 
 
-        function cancelAllRequests(){
+        function cancelAllRequests() {
+
+          console.debug('FileUpload -> cancelAllRequests');
+
            l.d('cancelAllRequests()');
 
            xhrs.forEach(function(xhr,i){
@@ -233,7 +250,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
         }
 
 
-        function initiateUpload(){ // see: http://docs.amazonwebservices.com/AmazonS3/latest/API/mpUploadInitiate.html
+        function initiateUpload() { // see: http://docs.amazonwebservices.com/AmazonS3/latest/API/mpUploadInitiate.html
+
+          console.debug('FileUpload -> initiateUpload');
 
            var initiate = {
               method: 'POST',
@@ -253,15 +272,19 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            };
 
            initiate.on200 = function(xhr){
+              console.debug('HERE ARE ON initiateUpload');
 
               var match = xhr.response.match(/<UploadId\>(.+)<\/UploadId\>/);
               if (match && match[1]){
                  me.uploadId = match[1];
                  l.d('requester success. got uploadId ' + me.uploadId);
                  makeParts();
+
                  if (requiresMd5()) {
+                    console.debug('function -> initiateUpload() -> processPartsListWithMd5Digests()');
                     processPartsListWithMd5Digests();
                  } else {
+                    console.debug('function -> initiateUpload -> processPartsList() ');
                     processPartsList();
                  }
               }else{
@@ -274,11 +297,15 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
         }
 
         function requiresMd5() {
+          console.debug('FileUpload -> requiresMd5');
+
            return con.checkMd5Integrity && me.file.size > 0;
         }
 
 
-        function uploadPart(partNumber){  //http://docs.amazonwebservices.com/AmazonS3/latest/API/mpUploadUploadPart.html
+        function uploadPart(partNumber) {  //http://docs.amazonwebservices.com/AmazonS3/latest/API/mpUploadUploadPart.html
+          
+          console.debug('FileUpload -> uploadPart');
 
            var backOff, hasErrored, upload, part;
 
@@ -303,7 +330,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
               attempts: part.attempts
            };
 
-           upload.onErr = function (xhr, isOnError){
+           upload.onErr = function (xhr, isOnError) {
               var oParser = new DOMParser();
               var oDOM = oParser.parseFromString(xhr.responseText, "text/xml");
               var code = oDOM.getElementsByTagName("Code");
@@ -322,12 +349,14 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
               if (hasErrored){
                  return;
               }
+
               hasErrored = true;
 
-              if (xhr.status == 404){
+              if (xhr.status == 404) {
                   var errMsg = '404 error resulted in abortion of both this part and the entire file.';
                   l.w(errMsg + ' Server response: ' + xhr.response);
                   me.error(errMsg);
+
                   // TODO: kill off other uploading parts when file is aborted
                   part.status = ABORTED;
                   setStatus(ABORTED);
@@ -396,6 +425,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 
         function abortPart(partNumber){
+          
+          console.debug('FileUpload -> abortPart');
 
            var part = parts[partNumber];
 
@@ -408,7 +439,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
         }
 
 
-        function completeUpload(){ //http://docs.amazonwebservices.com/AmazonS3/latest/API/mpUploadComplete.html
+        function completeUpload() { //http://docs.amazonwebservices.com/AmazonS3/latest/API/mpUploadComplete.html
+          
+          console.debug('FileUpload -> completeUpload');
 
            l.d('completeUpload');
            me.info('will attempt to complete upload');
@@ -452,6 +485,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
         var numProcessed = 0;
 
         function partsOnloadend(part) {
+          
+          console.debug('FileUpload -> partsOnloadend');
+
            return function () {
               var s = me.file.status;
               if (s == ERROR || s == CANCELED) {
@@ -474,22 +510,27 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
               }
 
               setTimeout(processPartsListWithMd5Digests, 1500);
-           }
+           };
         }
 
         function processPartsListWithMd5Digests() {
+          console.debug('function -> processPartsListWithMd5Digests');
+
            for (var i = 1; i <= numParts; i++) {
               var part = parts[i];
               if (part.md5_digest === null) {
-                 part.reader = new FileReader();
-                 part.reader.onloadend = partsOnloadend(part);
-                 part.reader.readAsBinaryString(getFilePart(me.file, part.start, part.end));
-                 break;
+                console.debug('Processing new part for md5_digest');
+                part.reader = new FileReader();
+                part.reader.onloadend = partsOnloadend(part);
+                part.reader.readAsBinaryString(getFilePart(me.file, part.start, part.end));
+                break;
               }
            }
         }
 
-        function makeParts(){
+        function makeParts() {
+
+          console.debug('FileUpload -> makeParts');
 
            numParts = Math.ceil(me.file.size / con.partSize) || 1; // issue #58
 
@@ -512,11 +553,12 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
         }
 
 
-        function processPartsList(){
+        function processPartsList() {
+          console.debug('function -> processPartsList ');
 
            var evaporatingCount = 0, finished = true, anyPartHasErrored = false, stati = [], bytesLoaded = [], info;
 
-           if (me.status != EVAPORATING){
+           if (me.status != EVAPORATING) {
               me.info('will not process parts list, as not currently evaporating');
               return;
            }
@@ -576,15 +618,20 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
         }
 
 
-        function monitorTotalProgress(){
+        function monitorTotalProgress() {
 
-           progressTotalInterval = setInterval(function(){
+          console.debug('function -> monitorTotalProgress ');
+
+           progressTotalInterval = setInterval(function() {
+
+              console.debug('me.status', me.status);
 
               var totalBytesLoaded = 0;
-              parts.forEach(function(part,i){
+              parts.forEach(function(part,i) {
                  totalBytesLoaded += part.loadedBytes;
               });
 
+              console.debug(' - progress total', totalBytesLoaded/me.sizeBytes);
               me.progress(totalBytesLoaded/me.sizeBytes);
            },con.progressIntervalMS);
         }
@@ -596,9 +643,13 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            This function was addeded as a work-around. It check the progress of each part every 2 minutes.
            If it finds a part that has made no progress in the last 2 minutes then it aborts it. It will then be detected as an error, and restarted in the same manner of any other errored part
         */
-        function monitorPartsProgress(){
+        function monitorPartsProgress() {
 
-           progressPartsInterval = setInterval(function(){
+          console.debug('function -> monitorPartsProgress ');
+          
+          progressPartsInterval = setInterval(function() {
+              
+              console.debug('me.status', me.status);
 
               l.d('monitorPartsProgress() ' + Date());
               parts.forEach(function(part,i){
@@ -633,12 +684,15 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
                  }
 
                  part.loadedBytesPrevious = part.loadedBytes;
+
               });
            },2 * 60 * 1000);
         }
 
 
-        function setupRequest(requester){
+        function setupRequest(requester) {
+
+          console.debug('FileUpload -> setupRequest');
 
            l.d('setupRequest()',requester);
 
@@ -659,7 +713,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
               'x-amz-date': requester.dateString
            });
 
-           requester.onGotAuth = function (){
+           requester.onGotAuth = function () { 
 
               var xhr = new XMLHttpRequest();
               xhrs.push(xhr);
@@ -691,7 +745,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
               if (requester.md5_digest) {
                  xhr.setRequestHeader('Content-MD5', requester.md5_digest);
               }
-              xhr.onreadystatechange = function(){
+
+              xhr.onreadystatechange = function() {
 
                  if (xhr.readyState == 4){
 
@@ -715,6 +770,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            };
 
            requester.onFailedAuth = requester.onFailedAuth || function(xhr){
+              console.debug('Request onFailedAuth() ');
               me.error('Error onFailedAuth for step: ' + requester.step);
               requester.onErr(xhr);
            };
@@ -722,7 +778,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 
         //see: http://docs.amazonwebservices.com/AmazonS3/latest/dev/RESTAuthentication.html#ConstructingTheAuthenticationHeader
-        function authorizedSend(authRequester){
+        function authorizedSend(authRequester) {
+
+          console.debug('function  -> authorizedSend');
 
            l.d('authorizedSend() ' + authRequester.step);
            var xhr = new XMLHttpRequest();
@@ -783,7 +841,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            xhr.send();
         }
 
-        function makeStringToSign(request){
+        function makeStringToSign(request) {
+
+          console.debug('function  -> makeStringToSign');
 
            var x_amz_headers = '', to_sign, header_key_array = [];
 
@@ -809,12 +869,14 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
            return encodeURIComponent(to_sign);
         }
 
-       function getPath() {
-         var path = '/' + con.bucket + '/' + me.name;
-         if (con.cloudfront || AWS_URL.indexOf('cloudfront') > -1) {
-           path = '/' + me.name;
-         }
-         return path;
+        function getPath() {
+          console.debug('function  -> getPath');
+          var path = '/' + con.bucket + '/' + me.name;
+          
+          if (con.cloudfront || AWS_URL.indexOf('cloudfront') > -1) {
+            path = '/' + me.name;
+          }
+          return path;
        }
 
      }
